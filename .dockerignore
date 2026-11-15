@@ -1,0 +1,11 @@
+k8s/
+*.md
+Makefile
+.git
+.idea
+.github/
+.claude/
+node_modules/
+dist/
+coverage/
+test/

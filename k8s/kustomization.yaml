@@ -1,0 +1,21 @@
+# Everything deny-list runs in the cluster. Argo CD deploys it (the deny-list
+# Application in the platform repo) whenever main changes.
+#
+# The version that runs is the newTag below. Image Updater changes it when CI
+# pushes a release.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - 00-namespace.yaml
+  - api/10-configmap.yaml
+  - api/20-deployment.yaml
+  - api/30-service.yaml
+  - api/40-podmonitor.yaml
+  - api/50-hpa.yaml
+  # Not dev/: the test database is for local runs, not part of a deploy.
+
+images:
+  - name: ghcr.io/c88lopez/deny-list
+    newTag: 0.1.0
+    newName: ghcr.io/c88lopez/deny-list

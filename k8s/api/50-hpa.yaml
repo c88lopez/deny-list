@@ -1,0 +1,33 @@
+# Scales deny-list on CPU: the HPA checks every 15s and sets
+#   replicas = ceil(replicas * average CPU / 180m)
+# between 2 and 3. It adds pods as soon as the average is over 180m, and removes
+# them only after 5 minutes below.
+#
+# The Deployment has no replicas field: the HPA owns the count. If it had one,
+# every Argo CD sync would reset the count to it.
+#
+# 180m is an absolute value rather than a percentage, because a percentage is
+# of the CPU *request* (50m), and would scale at almost no load. It's 60% of
+# the 300m limit, so pods are added before they're throttled.
+#
+# maxReplicas is limited by Postgres's connections, not by CPU: see "secrets"
+# in the Makefile before raising it.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: deny-list
+  namespace: deny-list
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: deny-list
+  minReplicas: 2
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: AverageValue
+          averageValue: 180m

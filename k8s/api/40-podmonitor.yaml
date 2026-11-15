@@ -1,0 +1,20 @@
+# Tells Prometheus (kube-prometheus-stack in the monitoring namespace) to scrape
+# /metrics on every deny-list pod's "metrics" port. A PodMonitor rather than a
+# ServiceMonitor, because the metrics port is deliberately not part of the Service.
+#
+# Check it's picked up: Prometheus UI > Status > Targets > podMonitor/deny-list/deny-list
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: deny-list
+  namespace: deny-list
+  labels:
+    app: deny-list
+spec:
+  selector:
+    matchLabels:
+      app: deny-list
+  podMetricsEndpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s

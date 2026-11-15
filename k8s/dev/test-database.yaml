@@ -1,0 +1,16 @@
+# A database for `make test`, next to the real one on the cluster's Postgres.
+# Owned by the service's own user, so the same credentials work for tests.
+#
+# In k8s/dev/, not k8s/: it's for development, so Argo CD doesn't apply it;
+# `make dev-setup` does. CloudNativePG creates the database and keeps it if
+# this resource is deleted (databaseReclaimPolicy defaults to retain).
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: deny-list-test
+  namespace: data
+spec:
+  cluster:
+    name: postgres
+  name: deny_list_test
+  owner: deny_list

@@ -1,0 +1,117 @@
+# Tests the code, then builds the image and pushes it to GitHub Container
+# Registry.
+#
+#   push to main      -> ghcr.io/<owner>/deny-list:main, :sha-<short>
+#   push tag v1.2.3   -> ghcr.io/<owner>/deny-list:1.2.3, :1.2, :latest
+#   pull request      -> build only, nothing is pushed
+name: build
+
+# Only when something that goes into the image or the tests changes: a commit
+# that only touches manifests (Argo CD deploys those) or docs runs nothing.
+# Path filters don't apply to tags, so a release always builds.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+    paths-ignore: &non-code
+      - "k8s/**"
+      - "**.md"
+  pull_request:
+    paths-ignore: *non-code
+
+permissions:
+  contents: read
+  packages: write # lets GITHUB_TOKEN push to ghcr.io
+
+jobs:
+  # The ruleset on main requires this job by name: rename it there too.
+  test:
+    runs-on: ubuntu-latest
+    # Throwaway Postgres and Redis so the e2e dependency tests run here too
+    # (they skip without TEST_DATABASE_URL/TEST_REDIS_URL).
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: deny_list
+          POSTGRES_PASSWORD: deny_list
+          POSTGRES_DB: deny_list_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U deny_list -d deny_list_test"
+          --health-interval 2s --health-timeout 2s --health-retries 15
+      redis:
+        image: redis:8-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 2s --health-timeout 2s --health-retries 15
+    env:
+      TEST_DATABASE_URL: postgres://deny_list:deny_list@localhost:5432/deny_list_test
+      TEST_REDIS_URL: redis://localhost:6379/3
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm run test:cov
+      - name: Coverage summary
+        run: |
+          for kind in unit e2e; do
+            node -e '
+              const t = require(`./coverage/${process.argv[1]}/coverage-summary.json`).total;
+              console.log(`### Coverage (${process.argv[1]}): ${t.lines.pct}% of lines, ${t.branches.pct}% of branches`);
+            ' "$kind" >> "$GITHUB_STEP_SUMMARY"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/deny-list
+    steps:
+      - uses: actions/checkout@v5
+
+      # Turns the git ref into image tags (and OCI labels linking the image to this repo).
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+            type=sha
+          flavor: |
+            latest=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          # The cluster node is amd64; arm64 lets you run the same image on your Mac.
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

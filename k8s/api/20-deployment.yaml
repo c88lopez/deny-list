@@ -1,0 +1,84 @@
+# A Deployment says "keep N copies of this pod running". It creates a ReplicaSet,
+# which creates the Pods. Changing the pod template triggers a rolling update.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deny-list
+  namespace: deny-list
+  labels:
+    app: deny-list
+spec:
+  # No replicas: the HPA sets the count (50-hpa.yaml).
+  selector:
+    matchLabels:
+      app: deny-list # must match the pod template labels below
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0 # never drop below the current number of ready pods during an update
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: deny-list
+    spec:
+      # Time between SIGTERM and SIGKILL. The app's own shutdown has
+      # SHUTDOWN_TIMEOUT (15s) of it: see src/lifecycle/shutdown.service.ts.
+      terminationGracePeriodSeconds: 20
+      # The pod never talks to the Kubernetes API, so it doesn't get a token for
+      # it: one less credential to steal if the container is compromised.
+      automountServiceAccountToken: false
+      containers:
+        - name: deny-list
+          # Built and pushed by .github/workflows/build.yml when a v* tag is pushed.
+          # Argo CD deploys it through k8s/kustomization.yaml; applied on
+          # its own, this file has no tag and would run :latest.
+          image: ghcr.io/c88lopez/deny-list # tag: newTag in k8s/kustomization.yaml
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+            # /metrics for Prometheus (scraped via 40-podmonitor.yaml). Not in
+            # the Service, so it isn't reachable through the NodePort.
+            - name: metrics
+              containerPort: 9464
+          envFrom:
+            - configMapRef:
+                name: deny-list-config
+            # DATABASE_URL and REDIS_URL contain passwords, so they live in a
+            # Secret (make secrets creates it). optional: pods still start if it
+            # doesn't exist yet, and /readyz reports the dependencies as skipped.
+            - secretRef:
+                name: deny-list-deps
+                optional: true
+          env:
+            - name: PORT
+              value: "3000"
+            - name: METRICS_PORT
+              value: "9464"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3 # /readyz pings dependencies with a 2s budget
+            failureThreshold: 3
+          resources:
+            requests: # what the scheduler reserves on a node
+              cpu: 50m
+              memory: 96Mi
+            limits: # hard cap; exceeding memory gets the container OOMKilled
+              cpu: 300m
+              memory: 256Mi # Node's heap and the OpenTelemetry SDK take more than Go
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532 # distroless "nonroot"; must be numeric for runAsNonRoot to verify
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true

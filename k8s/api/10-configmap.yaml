@@ -1,0 +1,16 @@
+# Non-secret config, injected into the pods as env vars. Pods read it at
+# start: `make restart` after a change (or let the next rollout pick it up).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: deny-list-config
+  namespace: deny-list
+data:
+  APP_ENV: "k8s-local"
+  # Only these take the pod out of the Service when down; others just show in /readyz.
+  CRITICAL_DEPENDENCIES: "postgres"
+  # Postgres connections per pod. Budgeted with the HPA's maxReplicas against
+  # Postgres's 100: see "secrets" in the Makefile before raising it.
+  DB_POOL_MAX: "5"
+  # Send traces to Alloy, which forwards them to Tempo. Remove to turn tracing off.
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://alloy.monitoring.svc:4317"

@@ -1,0 +1,33 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make test:*)",
+      "Bash(make cover)",
+      "Bash(npm run lint)",
+      "Bash(npm run typecheck)",
+      "Bash(npm run format:check)",
+      "Bash(npm test:*)",
+      "Bash(npm run test:e2e:*)"
+    ],
+    "ask": [
+      "Bash(make release:*)",
+      "Bash(make secrets:*)"
+    ],
+    "deny": [
+      "Bash(kubectl delete:*)"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path'); case \"$f\" in *.ts) npx prettier --write \"$f\" >/dev/null 2>&1;; esac; exit 0"
+          }
+        ]
+      }
+    ]
+  }
+}

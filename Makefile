@@ -79,9 +79,12 @@ release: ## tag a version: CI builds the image, Argo CD deploys it: make release
 # The namespace is Argo CD's: only create it if it doesn't exist yet (before the
 # first sync). Applying it over Argo CD's copy drops its tracking annotation, and
 # the Application shows OutOfSync until the next commit.
+# @: make expands the passwords into the command before echoing it, so without
+# it they'd be printed in plain text.
 secrets: ## create or update the service's Secret from the cluster's Postgres and Redis Secrets
 	kubectl get namespace $(NAMESPACE) >/dev/null 2>&1 || kubectl apply -f k8s/00-namespace.yaml
-	kubectl -n $(NAMESPACE) create secret generic deny-list-deps \
+	@echo "kubectl -n $(NAMESPACE) create secret generic deny-list-deps (DATABASE_URL, REDIS_URL)"
+	@kubectl -n $(NAMESPACE) create secret generic deny-list-deps \
 	  --from-literal=DATABASE_URL="postgres://deny_list:$(PG_PASS)@postgres-rw.$(DATA_NS).svc.cluster.local:5432/deny_list" \
 	  --from-literal=REDIS_URL="redis://:$(RD_PASS)@redis.$(DATA_NS).svc.cluster.local:6379/2" \
 	  --dry-run=client -o yaml | kubectl apply --server-side --force-conflicts -f -

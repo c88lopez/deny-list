@@ -5,7 +5,6 @@
 // Off when OTEL_EXPORTER_OTLP_ENDPOINT is unset. In the cluster it's Alloy
 // (k8s/api/10-configmap.yaml), which forwards to Tempo. The SDK reads the
 // standard OTEL_* variables too (OTEL_SERVICE_NAME, OTEL_TRACES_SAMPLER...).
-import { register } from 'node:module';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-grpc';
 import { ExpressInstrumentation } from '@opentelemetry/instrumentation-express';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
@@ -13,13 +12,26 @@ import { IORedisInstrumentation } from '@opentelemetry/instrumentation-ioredis';
 import { PgInstrumentation } from '@opentelemetry/instrumentation-pg';
 import { PinoInstrumentation } from '@opentelemetry/instrumentation-pino';
 import { NodeSDK } from '@opentelemetry/sdk-node';
+import {
+  register,
+  supportsSyncHooks,
+} from 'import-in-the-middle/register-hooks.mjs';
 
 const PROBES = new Set(['/healthz', '/readyz']);
 
-if (process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+if (!process.env.OTEL_EXPORTER_OTLP_ENDPOINT) {
+  // Tracing is off.
+} else if (!supportsSyncHooks()) {
+  // Node before 24.11.1 can't run the hook below. Tracing is optional, so the
+  // app runs without it rather than not at all.
+  console.warn(
+    `tracing is off: Node ${process.version} can't run synchronous loader hooks (needs 24.11.1 or later)`,
+  );
+} else {
   // The app is ESM: this hook lets the instrumentations patch modules loaded
-  // with `import`, not only `require`.
-  register('@opentelemetry/instrumentation/hook.mjs', import.meta.url);
+  // with `import`, not only `require`. It uses module.registerHooks(), which
+  // runs on this thread; module.register() and its loader thread are deprecated.
+  register();
 
   const sdk = new NodeSDK({
     serviceName: process.env.OTEL_SERVICE_NAME ?? 'deny-list',

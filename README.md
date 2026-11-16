@@ -34,7 +34,7 @@ Validated at startup (`src/config/env.ts`); an invalid value stops the pod with 
 ## Observability
 
 - **Metrics**: `http_server_request_duration_seconds` by `http_route`, `http_request_method` and `http_response_status_code` (the same names and buckets as importer), plus `nodejs_*` and `process_*`. The probes aren't counted.
-- **Traces**: OpenTelemetry for HTTP, Express, pg and ioredis, exported to Alloy, then Tempo. `src/tracing.ts` loads before the app (`node --import`).
+- **Traces**: OpenTelemetry for HTTP, Express, pg and ioredis, exported to Alloy, then Tempo. `src/tracing.ts` loads before the app (`node --import`) and hooks ESM imports with `module.registerHooks()`, which needs Node 24.11.1 or later; on an older Node it logs a warning and the app runs untraced.
 - **Logs**: JSON on stdout (pino), one line per request except the probes, with `trace_id` and `span_id` when tracing is on. Grafana links `trace_id` in Loki to Tempo.
 
 ## Graceful shutdown

@@ -66,11 +66,19 @@ release: ## tag a version: CI builds the image, Argo CD deploys it: make release
 	git tag v$(VERSION)
 	git push origin v$(VERSION)
 
-# DB_POOL_MAX (k8s/api/10-configmap.yaml) caps each pod's connection pool, and
-# Postgres allows 100 in all. With the HPA's maximum (3 pods), deny-list can
-# open 3*5 = 15; importer's services can open 60 (see its Makefile), so 75 of
-# the 100 are taken. Raise a maxReplicas or a pool size and this budget has to
-# be checked again.
+# DATABASE_URL goes through PgBouncer (postgres-pooler-rw, in the platform
+# repo's manifests/data/postgres.yaml), not straight to Postgres. DB_POOL_MAX
+# (k8s/api/10-configmap.yaml) caps each pod's pool, but those are connections to
+# PgBouncer, which are cheap: 3*5 = 15 at the HPA's maximum. PgBouncer shares at
+# most its default_pool_size (20) real connections between them, and that is
+# what counts against Postgres's 100, however many pods there are.
+#
+# PgBouncer is in transaction mode: consecutive transactions may run on
+# different real connections, so nothing can rely on session state (session
+# advisory locks, LISTEN/NOTIFY, SET outside a transaction, temp tables).
+# MIGRATE_DATABASE_URL goes straight to postgres-rw because migration tools
+# take a session advisory lock, like importer's (its k8s/jobs/migrate.yaml).
+# Nothing uses it yet: it's for the migration Job.
 #
 # --server-side: a client-side `kubectl apply` would keep a plain-text copy of
 # the URLs (with their passwords) in the last-applied-configuration annotation.
@@ -83,9 +91,10 @@ release: ## tag a version: CI builds the image, Argo CD deploys it: make release
 # it they'd be printed in plain text.
 secrets: ## create or update the service's Secret from the cluster's Postgres and Redis Secrets
 	kubectl get namespace $(NAMESPACE) >/dev/null 2>&1 || kubectl apply -f k8s/00-namespace.yaml
-	@echo "kubectl -n $(NAMESPACE) create secret generic deny-list-deps (DATABASE_URL, REDIS_URL)"
+	@echo "kubectl -n $(NAMESPACE) create secret generic deny-list-deps (DATABASE_URL, MIGRATE_DATABASE_URL, REDIS_URL)"
 	@kubectl -n $(NAMESPACE) create secret generic deny-list-deps \
-	  --from-literal=DATABASE_URL="postgres://deny_list:$(PG_PASS)@postgres-rw.$(DATA_NS).svc.cluster.local:5432/deny_list" \
+	  --from-literal=DATABASE_URL="postgres://deny_list:$(PG_PASS)@postgres-pooler-rw.$(DATA_NS).svc.cluster.local:5432/deny_list" \
+	  --from-literal=MIGRATE_DATABASE_URL="postgres://deny_list:$(PG_PASS)@postgres-rw.$(DATA_NS).svc.cluster.local:5432/deny_list" \
 	  --from-literal=REDIS_URL="redis://:$(RD_PASS)@redis.$(DATA_NS).svc.cluster.local:6379/2" \
 	  --dry-run=client -o yaml | kubectl apply --server-side --force-conflicts -f -
 

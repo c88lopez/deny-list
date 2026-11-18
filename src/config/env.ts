@@ -31,8 +31,8 @@ export const envSchema = z.object({
   // Unset: the dependency isn't configured and /readyz reports it as skipped.
   DATABASE_URL: optionalUrl,
   REDIS_URL: optionalUrl,
-  // Connections per pod. Budgeted with the HPA's maxReplicas against
-  // Postgres's 100 (see "secrets" in the Makefile).
+  // Connections per pod, to PgBouncer: PgBouncer, not this, caps the real
+  // Postgres connections (see "secrets" in the Makefile).
   DB_POOL_MAX: z.coerce.number().int().positive().default(5),
   // Only these make the pod not ready when they fail; others just show in /readyz.
   CRITICAL_DEPENDENCIES: z

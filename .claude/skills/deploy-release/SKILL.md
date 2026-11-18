@@ -30,8 +30,8 @@ A revert without step 1 gets undone: Image Updater sees the bad tag as the newes
 
 ## Secrets
 
-Secrets aren't in Git. `make secrets` creates or updates `deny-list-deps` (`DATABASE_URL`, `REDIS_URL`) from the `deny-list-postgres-role` and `redis-secret` Secrets in the `data` namespace. Then `make restart`.
+Secrets aren't in Git. `make secrets` creates or updates `deny-list-deps` (`DATABASE_URL`, `MIGRATE_DATABASE_URL`, `REDIS_URL`) from the `deny-list-postgres-role` and `redis-secret` Secrets in the `data` namespace. Then `make restart`.
 
 ## Postgres connection budget
 
-Postgres allows 100 connections. `DB_POOL_MAX` (in `k8s/api/10-configmap.yaml`) and the HPA's `maxReplicas` are budgeted together with importer's: 3 × 5 = 15 here, 60 for importer, 75 in all. Raising either means redoing the arithmetic in the comment above the Makefile's `secrets` target (and in importer's).
+`DATABASE_URL` points at PgBouncer (`postgres-pooler-rw` in `data`, transaction mode), which shares at most 20 real Postgres connections (its `default_pool_size`, in the platform repo) between all of deny-list's pods. `DB_POOL_MAX` (in `k8s/api/10-configmap.yaml`) and the HPA's `maxReplicas` only size connections to PgBouncer, so raising them doesn't touch Postgres's 100. If requests start waiting on the pool, the PgBouncer dashboard's "Clients waiting" panel shows it; the fix is then in the platform repo's Pooler. `MIGRATE_DATABASE_URL` goes straight to `postgres-rw`, for migrations (see the comment above the Makefile's `secrets` target).

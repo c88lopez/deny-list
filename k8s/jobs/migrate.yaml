@@ -1,0 +1,60 @@
+# A Job runs a pod to completion once, instead of keeping it running like a
+# Deployment. This one applies pending database migrations
+# (prisma/migrations) before a deploy.
+#
+# It's an Argo CD PreSync hook: every sync runs it (recreating the previous
+# one first) before applying anything else, and stops the sync if it fails, so
+# the pods of a version always find the schema they expect. Its image tag
+# comes from k8s/kustomization.yaml, like the Deployment's.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: deny-list-migrate
+  namespace: deny-list
+  labels:
+    app: deny-list
+    component: migrate
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  backoffLimit: 0 # a failed migration needs a human, not a retry
+  activeDeadlineSeconds: 600 # kill a migration that hangs (e.g. waiting on a table lock)
+  ttlSecondsAfterFinished: 86400 # keep the pod and its logs around for a day
+  template:
+    metadata:
+      labels:
+        app: deny-list
+        component: migrate
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false # no Kubernetes API access needed, see api/20-deployment.yaml
+      containers:
+        - name: migrate
+          image: ghcr.io/c88lopez/deny-list # tag: newTag in k8s/kustomization.yaml
+          # The image's entrypoint is node, so this runs the Prisma CLI.
+          args: ["node_modules/prisma/build/index.js", "migrate", "deploy"]
+          envFrom:
+            # Not optional here: without MIGRATE_DATABASE_URL there's nothing
+            # to migrate. prisma.config.ts reads it; it goes straight to
+            # postgres-rw, since migrate takes a session advisory lock that
+            # PgBouncer can't hold.
+            - secretRef:
+                name: deny-list-deps
+          env:
+            # No update check: the pod has no writable home to cache it in.
+            - name: CHECKPOINT_DISABLE
+              value: "1"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true

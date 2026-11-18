@@ -6,9 +6,10 @@ export default defineConfig({
     globals: true,
     root: './',
     include: ['test/**/*.e2e-spec.ts'],
+    globalSetup: ['test/migrate.ts'],
     coverage: {
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.spec.ts'],
+      exclude: ['src/**/*.spec.ts', 'src/generated/**'],
       reporter: ['text-summary', 'html', 'json-summary'],
       reportsDirectory: 'coverage/e2e',
     },

@@ -13,6 +13,7 @@ resources:
   - api/30-service.yaml
   - api/40-podmonitor.yaml
   - api/50-hpa.yaml
+  - jobs/migrate.yaml # PreSync hook: runs before the rest
   # Not dev/: the test database is for local runs, not part of a deploy.
 
 images:

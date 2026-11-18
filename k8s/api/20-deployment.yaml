@@ -45,8 +45,8 @@ spec:
           envFrom:
             - configMapRef:
                 name: deny-list-config
-            # DATABASE_URL, MIGRATE_DATABASE_URL (unused by the app) and
-            # REDIS_URL contain passwords, so they live in a Secret (make
+            # DATABASE_URL, MIGRATE_DATABASE_URL (only the migrate Job uses
+            # it) and REDIS_URL contain passwords, so they live in a Secret (make
             # secrets creates it). optional: pods still start if it doesn't
             # exist yet, and /readyz reports the dependencies as skipped.
             - secretRef:

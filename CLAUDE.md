@@ -27,6 +27,7 @@ npm run format     # prettier; CI runs format:check
 - Tests are Vitest: `vi.fn()`, not `jest.fn()`. Unit tests are `src/**/*.spec.ts`, e2e tests `test/**/*.e2e-spec.ts`.
 - Config comes from `ConfigService<Env, true>` with `{ infer: true }`. A new variable goes in the zod schema in `src/config/env.ts` first; `get()` never sees raw `process.env`.
 - Redis keys are prefixed `deny-list:` by the client (`src/redis/redis.module.ts`); don't add the prefix by hand.
+- In the cluster, Postgres is reached through PgBouncer in transaction mode, so code can't rely on session state: no session advisory locks, `LISTEN/NOTIFY`, `SET` outside a transaction, or temp tables. Keep such state inside one transaction (`SET LOCAL`, `pg_advisory_xact_lock`). Migrations use `MIGRATE_DATABASE_URL`, which goes straight to Postgres.
 - Postgres and Redis are optional at runtime: their providers are `null` when the URL is unset. Code that uses them handles that.
 - The NestJS version here is likely newer than what you know: https://docs.nestjs.com/llms.txt indexes its docs.
 

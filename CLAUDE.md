@@ -22,7 +22,7 @@ npm run format     # prettier; CI runs format:check
 - e2e tests that need Postgres and Redis **skip** when `TEST_DATABASE_URL` / `TEST_REDIS_URL` are unset, so a plain `npm run test:e2e` passes while skipping them. Use `make test`.
 - `make run` and `make migrate-local` hit the **real** `deny_list` database, the one the cluster serves.
 - The e2e `globalSetup` (`test/migrate.ts`) runs `prisma migrate deploy` on the test database first.
-- CI (`.github/workflows/build.yml`) runs lint, format check, typecheck and the tests with coverage against throwaway containers, then builds the image. Commits touching only `k8s/` or `*.md` skip CI. Its `test` job is a required check on `main`.
+- CI (`.github/workflows/build.yml`) runs lint, format check, typecheck and the tests with coverage against throwaway containers, then builds the image, starts it and waits for `/healthz` before pushing it. Every PR runs it; on `main`, commits touching only `k8s/` or `*.md` skip it. Its `test` job is a required check on `main`.
 
 ## Conventions
 

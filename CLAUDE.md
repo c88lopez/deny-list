@@ -53,7 +53,7 @@ A change isn't done until all of these pass, and the results are reported (with 
 - `src/health/`: `/healthz` and `/readyz`. The readiness logic is the pure `evaluate()` in `readiness.ts`; `CRITICAL_DEPENDENCIES` decides which failures make the pod not ready.
 - `src/metrics/`: prom-client registry, the request histogram middleware, and the metrics server on its own port.
 - `src/database/`: the `PG_POOL` pg pool and the `PRISMA` client on top of it (`PrismaPg`), both `null` without `DATABASE_URL`.
-- `src/entries/`: the deny-list itself. `entry.ts` validates and normalizes a type and value (pure, unit-tested), the service queries Prisma, and the controller maps results to status codes.
+- `src/entries/`: the deny-list itself. `entry.ts` validates and normalizes a type and value (pure, unit-tested), the service keeps Postgres (source of truth) and a Redis set per type in step, with GET reading Redis alone, and the controller maps results to status codes.
 - `src/lifecycle/shutdown.service.ts`: the SIGTERM sequence and its time budget. Modules close their own clients in `onApplicationShutdown`, which Nest runs after the HTTP server has closed.
 
 ## Deploy and release

@@ -1,12 +1,15 @@
 import type { INestApplication } from '@nestjs/common';
+import type { Redis } from 'ioredis';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
 import { PRISMA } from '../src/database/database.module.js';
+import { redisKey } from '../src/entries/entries.service.js';
 import type { PrismaClient } from '../src/generated/prisma/client.js';
 import { MetricsService } from '../src/metrics/metrics.service.js';
+import { REDIS } from '../src/redis/redis.module.js';
 import { start, TEST_DATABASE_URL, TEST_REDIS_URL, withDeps } from './app.js';
 
-describe('entries without Postgres configured', () => {
+describe('entries without Postgres and Redis configured', () => {
   let app: INestApplication<App>;
   beforeAll(async () => {
     app = await start({});
@@ -35,8 +38,9 @@ describe('entries without Postgres configured', () => {
   });
 });
 
-withDeps('entries with Postgres', () => {
+withDeps('entries with Postgres and Redis', () => {
   let app: INestApplication<App>;
+  let redis: Redis;
   beforeAll(async () => {
     app = await start({
       DATABASE_URL: TEST_DATABASE_URL ?? '',
@@ -44,7 +48,9 @@ withDeps('entries with Postgres', () => {
     });
   });
   beforeEach(async () => {
+    redis = app.get<Redis>(REDIS);
     await app.get<PrismaClient>(PRISMA).entry.deleteMany();
+    await redis.del(redisKey('ip'), redisKey('email'), redisKey('domain'));
   });
   afterAll(async () => {
     await app.close();
@@ -88,6 +94,62 @@ withDeps('entries with Postgres', () => {
     await http.delete('/entries/ip/192.0.2.1').expect(204);
     await http.get('/entries/ip/192.0.2.1').expect(404);
     await http.delete('/entries/ip/192.0.2.1').expect(404);
+  });
+
+  it('POST and DELETE write Postgres and Redis', async () => {
+    const http = request(app.getHttpServer());
+    const prisma = app.get<PrismaClient>(PRISMA);
+    const key = { type: 'domain' as const, value: 'example.com' };
+    await http.post('/entries').send(key).expect(201);
+    expect(await prisma.entry.count({ where: key })).toBe(1);
+    expect(await redis.sismember(redisKey('domain'), 'example.com')).toBe(1);
+    await http.delete('/entries/domain/example.com').expect(204);
+    expect(await prisma.entry.count({ where: key })).toBe(0);
+    expect(await redis.sismember(redisKey('domain'), 'example.com')).toBe(0);
+  });
+
+  it('GET reads Redis only', async () => {
+    const http = request(app.getHttpServer());
+    await http.post('/entries').send({ type: 'ip', value: '192.0.2.1' });
+    await redis.srem(redisKey('ip'), '192.0.2.1');
+    await http.get('/entries/ip/192.0.2.1').expect(404);
+    await redis.sadd(redisKey('ip'), '192.0.2.2');
+    await http.get('/entries/ip/192.0.2.2').expect(204);
+  });
+
+  it('POST of an existing entry restores it in Redis', async () => {
+    const http = request(app.getHttpServer());
+    await http.post('/entries').send({ type: 'ip', value: '192.0.2.1' });
+    await redis.del(redisKey('ip'));
+    await http
+      .post('/entries')
+      .send({ type: 'ip', value: '192.0.2.1' })
+      .expect(200);
+    await http.get('/entries/ip/192.0.2.1').expect(204);
+  });
+
+  it('DELETE of an entry only in Redis removes it there', async () => {
+    const http = request(app.getHttpServer());
+    await redis.sadd(redisKey('ip'), '192.0.2.1');
+    await http.delete('/entries/ip/192.0.2.1').expect(204);
+    await http.get('/entries/ip/192.0.2.1').expect(404);
+  });
+
+  it('serializes concurrent writes to one entry', async () => {
+    const http = request(app.getHttpServer());
+    const entry = { type: 'ip', value: '192.0.2.1' };
+    await Promise.all(
+      Array.from({ length: 10 }, (_, i) =>
+        i % 2
+          ? http.post('/entries').send(entry)
+          : http.delete('/entries/ip/192.0.2.1'),
+      ),
+    );
+    const inPostgres = await app
+      .get<PrismaClient>(PRISMA)
+      .entry.count({ where: { type: 'ip', value: '192.0.2.1' } });
+    const inRedis = await redis.sismember(redisKey('ip'), '192.0.2.1');
+    expect(inRedis).toBe(inPostgres);
   });
 
   it('takes IPv6 addresses URL-encoded in the path', async () => {

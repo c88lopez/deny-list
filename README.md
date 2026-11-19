@@ -9,7 +9,7 @@ It keeps a list of denied values (IP addresses, emails and domains) that clients
 | Port | Path | What |
 | --- | --- | --- |
 | 3000 (`PORT`) | `POST /entries` | Adds `{"type", "value"}`: 201 with `{type, value, createdAt}` when it's new, 200 with the existing entry when it was already there. |
-| 3000 | `GET /entries/:type/:value` | 204 when the entry exists, 404 when it doesn't. `HEAD` works the same way. |
+| 3000 | `GET /entries/:type/:value` | 204 when the entry exists, 404 when it doesn't. Reads Redis only. `HEAD` works the same way. |
 | 3000 | `DELETE /entries/:type/:value` | 204 when an entry was removed, 404 when there was none. |
 | 3000 | `GET /healthz` | Liveness: the process is up. Doesn't check dependencies. |
 | 3000 | `GET /readyz` | Readiness: pings Postgres and Redis concurrently, 2s each. 503 when a dependency in `CRITICAL_DEPENDENCIES` fails or the pod is shutting down; 200 `degraded` when only another one fails; `skipped` for one that isn't configured. |
@@ -26,6 +26,8 @@ In the cluster: `http://192.168.68.61:30083`.
 - `domain`: trimmed, lowercased, without a trailing dot, and with at least one dot.
 
 An unknown type or an invalid value is a 400 with zod's `issues`. Without `DATABASE_URL`, the endpoints are 503.
+
+Postgres is the source of truth and Redis holds a copy, one set per type (`deny-list:entries:<type>`). `GET` reads only Redis. `POST` and `DELETE` write both stores in one Postgres transaction, under a lock on the entry, so a Redis failure rolls the change back. Both requests are idempotent, so repeating one also repairs Redis when it has drifted from Postgres.
 
 In `GET` and `DELETE`, the type and value are in the path, URL-encoded: `/entries/ip/2001%3Adb8%3A%3A1`. Not in the query string, where `+` would turn into a space.
 

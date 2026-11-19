@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -12,7 +11,8 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { EntriesService } from './entries.service.js';
-import { type EntryKey, parseEntry } from './entry.js';
+import type { EntryKey } from './entry.js';
+import { ParseEntryPipe } from './entry.pipe.js';
 
 type EntryBody = { type: string; value: string; createdAt: Date };
 
@@ -27,10 +27,10 @@ export class EntriesController {
   // there.
   @Post()
   async add(
-    @Body() body: unknown,
+    @Body(ParseEntryPipe) key: EntryKey,
     @Res({ passthrough: true }) res: Response,
   ): Promise<EntryBody> {
-    const { entry, created } = await this.entries.add(parse(body));
+    const { entry, created } = await this.entries.add(key);
     res.status(created ? 201 : 200);
 
     return { type: entry.type, value: entry.value, createdAt: entry.createdAt };
@@ -40,11 +40,8 @@ export class EntriesController {
   // this route too.
   @Get(':type/:value')
   @HttpCode(204)
-  async check(
-    @Param('type') type: string,
-    @Param('value') value: string,
-  ): Promise<void> {
-    if (!(await this.entries.exists(parse({ type, value })))) {
+  async check(@Param(ParseEntryPipe) key: EntryKey): Promise<void> {
+    if (!(await this.entries.exists(key))) {
       throw new NotFoundException();
     }
   }
@@ -52,26 +49,9 @@ export class EntriesController {
   // 204 when an entry was removed, 404 when there was none.
   @Delete(':type/:value')
   @HttpCode(204)
-  async remove(
-    @Param('type') type: string,
-    @Param('value') value: string,
-  ): Promise<void> {
-    if (!(await this.entries.remove(parse({ type, value })))) {
+  async remove(@Param(ParseEntryPipe) key: EntryKey): Promise<void> {
+    if (!(await this.entries.remove(key))) {
       throw new NotFoundException();
     }
   }
-}
-
-// 400 with zod's issues when the type is unknown or the value isn't valid for
-// it.
-function parse(input: unknown): EntryKey {
-  const result = parseEntry(input);
-  if (!result.success) {
-    throw new BadRequestException({
-      message: 'invalid entry',
-      issues: result.error.issues,
-    });
-  }
-
-  return result.data;
 }

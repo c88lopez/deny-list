@@ -10,6 +10,23 @@
       { "blankLine": "always", "prev": "*", "next": "return" }
     ]
   },
+  "overrides": [
+    {
+      "files": ["src/**/*.controller.ts"],
+      "rules": {
+        "typescript/no-restricted-types": [
+          "error",
+          {
+            "types": {
+              "unknown": {
+                "message": "Type request data with a DTO, validated by a pipe (see src/CLAUDE.md)."
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
   "env": {
     "node": true
   }

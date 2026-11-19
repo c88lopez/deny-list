@@ -1,41 +1,9 @@
 import type { INestApplication } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
-import { configureApp } from '../src/app.js';
-import { AppModule } from '../src/app.module.js';
 import { HealthService } from '../src/health/health.service.js';
 import { MetricsService } from '../src/metrics/metrics.service.js';
-
-// The Postgres and Redis tests run only with TEST_DATABASE_URL and
-// TEST_REDIS_URL set (make test, with make tunnel running; CI sets them to
-// its service containers). Without them they're skipped.
-const { TEST_DATABASE_URL, TEST_REDIS_URL } = process.env;
-const withDeps = TEST_DATABASE_URL && TEST_REDIS_URL ? describe : describe.skip;
-
-async function start(
-  env: Record<string, string>,
-): Promise<INestApplication<App>> {
-  // The app validates process.env once, when the module is compiled.
-  const keys = [
-    'DATABASE_URL',
-    'REDIS_URL',
-    'CRITICAL_DEPENDENCIES',
-    'LOG_LEVEL',
-  ];
-  for (const k of keys) delete process.env[k];
-  Object.assign(process.env, { LOG_LEVEL: 'warn' }, env);
-
-  const moduleRef = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
-  const app = moduleRef.createNestApplication<INestApplication<App>>({
-    bufferLogs: true,
-  });
-  configureApp(app);
-  await app.init();
-  return app;
-}
+import { start, TEST_DATABASE_URL, TEST_REDIS_URL, withDeps } from './app.js';
 
 describe('without dependencies configured', () => {
   let app: INestApplication<App>;

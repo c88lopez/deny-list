@@ -1,8 +1,14 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": ["src/generated/**"],
+  "jsPlugins": ["@stylistic/eslint-plugin"],
   "rules": {
     "typescript/no-explicit-any": "off",
-    "typescript/no-floating-promises": "error"
+    "typescript/no-floating-promises": "error",
+    "@stylistic/padding-line-between-statements": [
+      "error",
+      { "blankLine": "always", "prev": "*", "next": "return" }
+    ]
   },
   "env": {
     "node": true

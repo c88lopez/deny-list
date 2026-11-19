@@ -36,6 +36,7 @@ export const KEY_PREFIX = 'deny-list:';
         // ioredis prints each one unformatted.
         const log = new Logger('Redis');
         redis.on('error', (err: Error) => log.warn(err.message));
+
         return redis;
       },
     },

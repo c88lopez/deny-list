@@ -1,0 +1,36 @@
+// The schema is the source of truth: change it, then generate a migration
+// with `make migration NAME=...` (see the Makefile).
+
+generator client {
+  provider     = "prisma-client"
+  // Gitignored; `npm ci` regenerates it (the postinstall script).
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+// The URL is in prisma.config.ts, for migrations only. The app connects
+// through PrismaPg on its own pool (src/database/database.module.ts).
+datasource db {
+  provider = "postgresql"
+}
+
+// A new type needs a migration (ALTER TYPE ... ADD VALUE) and a rule in
+// src/entries/entry.ts.
+enum EntryType {
+  ip
+  email
+  domain
+
+  @@map("entry_type")
+}
+
+// A denied value. The value is stored normalized (src/entries/entry.ts), so
+// the primary key is both the uniqueness rule and the lookup index.
+model Entry {
+  type      EntryType
+  value     String
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@id([type, value])
+  @@map("entries")
+}

@@ -10,7 +10,7 @@ export default defineConfig({
     include: ['src/**/*.spec.ts'],
     coverage: {
       include: ['src/**/*.ts'],
-      exclude: ['src/**/*.spec.ts'],
+      exclude: ['src/**/*.spec.ts', 'src/generated/**'],
       reporter: ['text-summary', 'html', 'json-summary'],
       reportsDirectory: 'coverage/unit',
     },

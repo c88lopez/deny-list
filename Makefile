@@ -6,7 +6,7 @@ NAMESPACE := deny-list
 # Where Postgres and Redis run (the platform repo's manifests/data/).
 DATA_NS   := data
 
-.PHONY: tunnel dev-setup run test cover image release secrets status logs restart
+.PHONY: tunnel dev-setup run test cover migrate-local migration image release secrets status logs restart
 
 ## --- local ---
 # Local runs use the cluster's Postgres and Redis through `make tunnel`, with
@@ -21,8 +21,11 @@ uri    = $(shell jq -rn --arg v '$(1)' '$$v|@uri')
 PG_PASS = $(eval PG_PASS := $(call uri,$(call secret,deny-list-postgres-role,password)))$(PG_PASS)
 RD_PASS = $(eval RD_PASS := $(call uri,$(call secret,redis-secret,REDIS_PASSWORD)))$(RD_PASS)
 
-LOCAL_DATABASE_URL      ?= postgres://deny_list:$(PG_PASS)@localhost:5433/deny_list
-LOCAL_TEST_DATABASE_URL ?= postgres://deny_list:$(PG_PASS)@localhost:5433/deny_list_test
+# sslmode=disable: Postgres only accepts TLS 1.3, which Prisma's schema engine
+# can't do on macOS (it uses the system's TLS, P1011 "bad protocol version").
+# The port-forward is already encrypted up to the cluster.
+LOCAL_DATABASE_URL      ?= postgres://deny_list:$(PG_PASS)@localhost:5433/deny_list?sslmode=disable
+LOCAL_TEST_DATABASE_URL ?= postgres://deny_list:$(PG_PASS)@localhost:5433/deny_list_test?sslmode=disable
 # Redis DB 0 and 1 are importer's. Keys are under deny-list: in any case.
 LOCAL_REDIS_URL         ?= redis://:$(RD_PASS)@localhost:6380/2
 LOCAL_TEST_REDIS_URL    ?= redis://:$(RD_PASS)@localhost:6380/3
@@ -56,6 +59,24 @@ cover: export TEST_REDIS_URL = $(LOCAL_TEST_REDIS_URL)
 cover: ## the tests with coverage, in coverage/unit and coverage/e2e (needs make tunnel)
 	npm run test:cov
 
+# The real deny_list database, the one the cluster serves: in the cluster the
+# migrate Job (k8s/jobs/migrate.yaml) does this on every sync. The tunnel
+# forwards postgres-rw, so this goes straight to Postgres, as migrate needs.
+migrate-local: export MIGRATE_DATABASE_URL = $(LOCAL_DATABASE_URL)
+migrate-local: ## apply pending migrations to the real deny_list database (needs make tunnel)
+	npx prisma migrate deploy
+
+# Diffs the test database, brought up to date first, against
+# prisma/schema.prisma, into a new migration. Review the SQL before
+# committing it.
+migration: export MIGRATE_DATABASE_URL = $(LOCAL_TEST_DATABASE_URL)
+migration: ## after changing prisma/schema.prisma: make migration NAME=add_reason (needs make tunnel)
+	@test -n "$(NAME)" || { echo "usage: make migration NAME=what_it_does"; exit 1; }
+	npx prisma migrate deploy
+	@dir=prisma/migrations/$$(date -u +%Y%m%d%H%M%S)_$(NAME); mkdir -p $$dir; \
+	npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script > $$dir/migration.sql; \
+	echo "wrote $$dir/migration.sql"
+
 image: ## build the image locally to try it (CI builds the one the cluster uses)
 	docker build -t $(REGISTRY)/deny-list:$(VERSION) .
 
@@ -77,8 +98,7 @@ release: ## tag a version: CI builds the image, Argo CD deploys it: make release
 # different real connections, so nothing can rely on session state (session
 # advisory locks, LISTEN/NOTIFY, SET outside a transaction, temp tables).
 # MIGRATE_DATABASE_URL goes straight to postgres-rw because migration tools
-# take a session advisory lock, like importer's (its k8s/jobs/migrate.yaml).
-# Nothing uses it yet: it's for the migration Job.
+# take a session advisory lock: the migrate Job (k8s/jobs/migrate.yaml) uses it.
 #
 # --server-side: a client-side `kubectl apply` would keep a plain-text copy of
 # the URLs (with their passwords) in the last-applied-configuration annotation.

@@ -4,6 +4,7 @@ import type { IncomingMessage } from 'node:http';
 import { LoggerModule } from 'nestjs-pino';
 import { type Env, validateEnv } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
+import { EntriesModule } from './entries/entries.module.js';
 import { HealthModule } from './health/health.module.js';
 import { ShutdownService } from './lifecycle/shutdown.service.js';
 import { MetricsModule } from './metrics/metrics.module.js';
@@ -38,6 +39,7 @@ import { RedisModule } from './redis/redis.module.js';
     RedisModule,
     MetricsModule,
     HealthModule,
+    EntriesModule,
   ],
   providers: [ShutdownService],
 })

@@ -10,18 +10,19 @@
 # Image Updater deploys only x.y.z tags, so none of the others ever deploys.
 name: build
 
-# Only when something that goes into the image or the tests changes: a commit
-# that only touches manifests (Argo CD deploys those) or docs runs nothing.
-# Path filters don't apply to tags, so a release always builds.
+# On main, only when something that goes into the image or the tests changes:
+# a commit that only touches manifests (Argo CD deploys those) or docs runs
+# nothing. Path filters don't apply to tags, so a release always builds.
+# Every pull request runs it, whatever it changes: the ruleset requires the
+# test check, and a PR it skipped could never merge.
 on:
   push:
     branches: [main]
     tags: ["v*"]
-    paths-ignore: &non-code
+    paths-ignore:
       - "k8s/**"
       - "**.md"
   pull_request:
-    paths-ignore: *non-code
 
 permissions:
   contents: read
@@ -103,6 +104,30 @@ jobs:
             latest=${{ startsWith(github.ref, 'refs/tags/v') }}
 
       - uses: docker/setup-buildx-action@v3
+
+      # The tests run from source, so they can't catch a dist/ that doesn't
+      # load in the image (0.2.0 crashed on startup that way). This starts the
+      # amd64 image the way the Deployment runs it (non-root, read-only root
+      # filesystem) and waits for /healthz, before anything is pushed.
+      - name: Build the amd64 image for the smoke test
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: deny-list:smoke
+          cache-from: type=gha
+
+      - name: Smoke test
+        run: |
+          docker run -d --name smoke --read-only --user 65532:65532 -p 3000:3000 deny-list:smoke
+          for i in $(seq 1 30); do
+            if curl -sf localhost:3000/healthz; then echo; exit 0; fi
+            [ "$(docker inspect -f '{{.State.Running}}' smoke)" = true ] || break
+            sleep 1
+          done
+          docker logs smoke
+          exit 1
 
       - if: env.PUSH == 'true'
         uses: docker/login-action@v3

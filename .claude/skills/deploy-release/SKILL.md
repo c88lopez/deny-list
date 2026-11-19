@@ -1,6 +1,6 @@
 ---
 name: deploy-release
-description: How deny-list gets to the cluster - Argo CD deploys from k8s/ on main, releasing a version with make release, rolling back, Secrets and the Postgres connection budget. Use when releasing, deploying, rolling back, changing k8s/ manifests, the HPA maximum or DB_POOL_MAX, or running make secrets.
+description: How deny-list gets to the cluster - Argo CD deploys from k8s/ on main, every code merge to main released automatically (or by hand with make release), rolling back, Secrets and the Postgres connection budget. Use when releasing, deploying, rolling back, changing k8s/ manifests, the HPA maximum or DB_POOL_MAX, or running make secrets.
 ---
 
 # Deploy and release
@@ -16,9 +16,13 @@ description: How deny-list gets to the cluster - Argo CD deploys from k8s/ on ma
 
 The version that runs is `newTag` in `k8s/kustomization.yaml`.
 
-1. `make release VERSION=x.y.z` tags `vx.y.z` on the current commit and pushes the tag. Tag a commit that's on `main`. This is outward-facing: run it only when the user asks, with the version they gave.
-2. CI builds the image from the tag and pushes `ghcr.io/c88lopez/deny-list:x.y.z`.
+Merging is releasing: every merged PR that changes code (anything besides `k8s/` and `*.md`) is released by CI's `release` job, after the tests and the image build on `main`.
+
+1. The `release` job bumps the patch of the latest `v*` tag, or the minor (patch back to 0) when the merged PR has the `release:minor` label. A major bump isn't automatic.
+2. It adds the version's tags (`x.y.z`, `x.y`, `latest`) to the image just pushed for that commit, without rebuilding, and pushes the git tag `vx.y.z`. That tag doesn't start another CI run.
 3. Argo CD Image Updater commits the new `newTag` to `main` itself, as `argocd-image-updater`, through its deploy key (the ruleset lets deploy keys push directly). Run `git pull` after a release before branching again.
+
+To release a version by hand (a commit CI skipped, or a version number the job wouldn't pick), `make release VERSION=x.y.z` tags the current commit and pushes the tag, and CI builds the image from it. Tag a commit that's on `main`. This is outward-facing: run it only when the user asks, with the version they gave.
 
 Image Updater only takes `0.x.y` tags (`~0` in the platform repo's `manifests/argocd/deny-list-image-updater.yaml`). A `1.0.0` needs that range changed first.
 

@@ -104,6 +104,25 @@ withDeps('entries with Postgres', () => {
       .expect(204);
   });
 
+  it('finds an IPv4 entry by its IPv4-mapped IPv6 address', async () => {
+    const http = request(app.getHttpServer());
+    await http
+      .post('/entries')
+      .send({ type: 'ip', value: '192.0.2.1' })
+      .expect(201);
+    await http
+      .post('/entries')
+      .send({ type: 'ip', value: '::ffff:192.0.2.1' })
+      .expect(200);
+    await http
+      .get(`/entries/ip/${encodeURIComponent('::ffff:192.0.2.1')}`)
+      .expect(204);
+    await http
+      .delete(`/entries/ip/${encodeURIComponent('::ffff:c000:201')}`)
+      .expect(204);
+    await http.get('/entries/ip/192.0.2.1').expect(404);
+  });
+
   it('is 400 for an unknown type or an invalid value', async () => {
     const http = request(app.getHttpServer());
     await http.post('/entries').send({ type: 'phone', value: '1' }).expect(400);

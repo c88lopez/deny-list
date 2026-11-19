@@ -21,7 +21,7 @@ In the cluster: `http://192.168.68.57:30083`.
 
 `type` is `ip`, `email` or `domain`. Values are validated for their type and stored normalized, so any spelling of one finds it (`src/entries/entry.ts`):
 
-- `ip`: IPv4, or IPv6 in its canonical form (`2001:DB8:0::1` is `2001:db8::1`).
+- `ip`: IPv4, or IPv6 in its canonical form (`2001:DB8:0::1` is `2001:db8::1`). An IPv4-mapped address is its IPv4 one (`::ffff:192.0.2.1` is `192.0.2.1`).
 - `email`: trimmed and lowercased.
 - `domain`: trimmed, lowercased, without a trailing dot, and with at least one dot.
 

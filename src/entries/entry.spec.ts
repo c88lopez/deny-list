@@ -16,6 +16,17 @@ describe('parseEntry', () => {
     expect(value('ip', '::1')).toBe('::1');
   });
 
+  it('writes IPv4-mapped IPv6 addresses as IPv4', () => {
+    expect(value('ip', '::ffff:192.0.2.1')).toBe('192.0.2.1');
+    expect(value('ip', '::FFFF:C000:0201')).toBe('192.0.2.1');
+    expect(value('ip', '0:0:0:0:0:ffff:0a00:0001')).toBe('10.0.0.1');
+  });
+
+  it('keeps other IPv6 addresses that embed an IPv4 one as IPv6', () => {
+    expect(value('ip', '64:ff9b::192.0.2.1')).toBe('64:ff9b::c000:201');
+    expect(value('ip', '::192.0.2.1')).toBe('::c000:201');
+  });
+
   it('rejects what is not an IP address', () => {
     expect(value('ip', '256.0.0.1')).toBeUndefined();
     expect(value('ip', 'example.com')).toBeUndefined();

@@ -6,6 +6,10 @@ generator client {
   // Gitignored; `npm ci` regenerates it (the postinstall script).
   output       = "../src/generated/prisma"
   moduleFormat = "esm"
+  // Otherwise Prisma infers it from tsconfig.json, which the Docker build
+  // doesn't have yet when npm ci generates the client: it writes ".ts"
+  // imports, which tsc leaves as they are and node can't load from dist/.
+  importFileExtension = "js"
 }
 
 // The URL is in prisma.config.ts, for migrations only. The app connects

@@ -1,7 +1,9 @@
 # Tests the code, then builds the image and pushes it to GitHub Container
 # Registry.
 #
-#   push to main      -> ghcr.io/<owner>/deny-list:main, :sha-<short>
+#   push to main      -> ghcr.io/<owner>/deny-list:main, :sha-<short>, and then
+#                        a release: the next version's tags on that image
+#                        and a git tag (the release job, below)
 #   push tag v1.2.3   -> ghcr.io/<owner>/deny-list:1.2.3, :1.2, :latest
 #   pull request      -> ghcr.io/<owner>/deny-list:pr-<number>, :sha-<short>, to
 #                        try a branch in the cluster before merging it (a
@@ -146,3 +148,68 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  # Every push to main that runs this workflow changed code (paths-ignore skips
+  # the rest), so it's released: the patch goes up, or the minor when the
+  # merged PR has the release:minor label. The image pushed above gets the
+  # version's tags, without a rebuild, and Image Updater deploys it.
+  # The git tag is pushed with GITHUB_TOKEN, which doesn't start workflows, so
+  # it doesn't build the image a second time.
+  release:
+    needs: image
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # One release at a time, so two merges can't take the same version. A run
+    # still waiting when a newer one queues is cancelled; the newer one
+    # releases both merges.
+    concurrency:
+      group: release
+    permissions:
+      contents: write # pushes the git tag
+      packages: write
+      pull-requests: read # the merged PR's labels
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/deny-list
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0 # the tags
+
+      - id: version
+        run: |
+          if git tag --points-at HEAD | grep -q '^v'; then
+            echo "HEAD is already released: $(git tag --points-at HEAD)"
+            exit 0
+          fi
+          last=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -1)
+          IFS=. read -r major minor patch <<< "${last#v}"
+          labels=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[].labels[].name')
+          if grep -qx 'release:minor' <<< "$labels"; then
+            minor=$((minor + 1)) patch=0
+          else
+            patch=$((patch + 1))
+          fi
+          echo "version=$major.$minor.$patch" >> "$GITHUB_OUTPUT"
+          echo "$last -> $major.$minor.$patch" >> "$GITHUB_STEP_SUMMARY"
+
+      - if: steps.version.outputs.version
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - if: steps.version.outputs.version
+        uses: docker/setup-buildx-action@v3
+
+      # The same tags a v* tag push would give the image.
+      - if: steps.version.outputs.version
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          docker buildx imagetools create \
+            -t "$IMAGE:$VERSION" -t "$IMAGE:${VERSION%.*}" -t "$IMAGE:latest" \
+            "$IMAGE:sha-${GITHUB_SHA::7}"
+          git tag "v$VERSION"
+          git push origin "v$VERSION"

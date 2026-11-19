@@ -81,4 +81,4 @@ make run         # :3000, metrics :9467
 
 ## Deploy
 
-Argo CD deploys `k8s/` from `main`; the Application is in the [platform](https://github.com/c88lopez/platform) repo. `make release VERSION=x.y.z` tags a version, CI pushes `ghcr.io/c88lopez/deny-list:x.y.z`, and Argo CD Image Updater commits it to `k8s/kustomization.yaml`. Secrets aren't in Git: `make secrets` creates `deny-list-deps`.
+Argo CD deploys `k8s/` from `main`; the Application is in the [platform](https://github.com/c88lopez/platform) repo. Every merge to `main` that changes code is a release: CI bumps the patch (the minor, when the PR has the `release:minor` label), pushes `ghcr.io/c88lopez/deny-list:x.y.z` and tags `vx.y.z`, and Argo CD Image Updater commits it to `k8s/kustomization.yaml`. Secrets aren't in Git: `make secrets` creates `deny-list-deps`.

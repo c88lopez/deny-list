@@ -67,5 +67,6 @@ export function validateEnv(raw: Record<string, unknown>): Env {
   if (!result.success) {
     throw new Error(`invalid environment:\n${z.prettifyError(result.error)}`);
   }
+
   return result.data;
 }

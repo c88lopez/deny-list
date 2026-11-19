@@ -48,6 +48,7 @@ export class HealthService implements OnApplicationBootstrap {
 
   async readiness(): Promise<Readiness> {
     if (!this.ready) return { code: 503, body: { status: 'shutting down' } };
+
     return evaluate(this.checks);
   }
 }

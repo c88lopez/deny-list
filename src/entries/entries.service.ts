@@ -36,6 +36,7 @@ export class EntriesService {
       where: { type_value: key },
       select: { type: true },
     });
+
     return entry !== null;
   }
 
@@ -43,6 +44,7 @@ export class EntriesService {
   // throws when there's none.
   async remove(key: EntryKey): Promise<boolean> {
     const { count } = await this.db().entry.deleteMany({ where: key });
+
     return count > 0;
   }
 
@@ -50,6 +52,7 @@ export class EntriesService {
     if (!this.prisma) {
       throw new ServiceUnavailableException('Postgres is not configured');
     }
+
     return this.prisma;
   }
 }

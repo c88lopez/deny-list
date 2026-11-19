@@ -34,5 +34,6 @@ export async function start(
   });
   configureApp(app);
   await app.init();
+
   return app;
 }

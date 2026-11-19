@@ -37,6 +37,7 @@ export const PRISMA = Symbol('PRISMA');
         pool.on('error', (err) =>
           log.warn(`idle client error: ${err.message}`),
         );
+
         return pool;
       },
     },

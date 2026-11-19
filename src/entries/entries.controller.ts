@@ -32,6 +32,7 @@ export class EntriesController {
   ): Promise<EntryBody> {
     const { entry, created } = await this.entries.add(parse(body));
     res.status(created ? 201 : 200);
+
     return { type: entry.type, value: entry.value, createdAt: entry.createdAt };
   }
 
@@ -71,5 +72,6 @@ function parse(input: unknown): EntryKey {
       issues: result.error.issues,
     });
   }
+
   return result.data;
 }

@@ -20,6 +20,7 @@ export class HealthController {
   async readyz(@Res({ passthrough: true }) res: Response): Promise<object> {
     const { code, body } = await this.health.readiness();
     res.status(code);
+
     return body;
   }
 }

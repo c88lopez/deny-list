@@ -84,6 +84,7 @@ export class MetricsService implements OnApplicationShutdown {
     this.server = createServer((req, res) => {
       if (req.url !== '/metrics') {
         res.writeHead(404).end();
+
         return;
       }
       this.registry.metrics().then(
@@ -97,6 +98,7 @@ export class MetricsService implements OnApplicationShutdown {
         },
       );
     });
+
     return new Promise((resolve, reject) => {
       this.server?.once('error', reject).listen(port, () => resolve());
     });

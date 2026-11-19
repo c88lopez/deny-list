@@ -2,6 +2,7 @@ import { parseEntry } from './entry.js';
 
 function value(type: string, value: string): string | undefined {
   const result = parseEntry({ type, value });
+
   return result.success ? result.data.value : undefined;
 }
 

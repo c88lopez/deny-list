@@ -41,6 +41,7 @@ export async function evaluate(
       const start = performance.now();
       try {
         await withTimeout(c.run(), timeoutMs);
+
         return [
           c.name,
           { status: 'ok', critical: c.critical, latency_ms: elapsed(start) },
@@ -68,6 +69,7 @@ export async function evaluate(
     return { code: 503, body: { ...body, status: 'not ready' } };
   }
   if (failed.length > 0) body.status = 'degraded';
+
   return { code: 200, body };
 }
 
@@ -80,5 +82,6 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   const timeout = new Promise<never>((_, reject) => {
     timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
   });
+
   return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
 }

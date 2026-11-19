@@ -21,8 +21,11 @@ uri    = $(shell jq -rn --arg v '$(1)' '$$v|@uri')
 PG_PASS = $(eval PG_PASS := $(call uri,$(call secret,deny-list-postgres-role,password)))$(PG_PASS)
 RD_PASS = $(eval RD_PASS := $(call uri,$(call secret,redis-secret,REDIS_PASSWORD)))$(RD_PASS)
 
-LOCAL_DATABASE_URL      ?= postgres://deny_list:$(PG_PASS)@localhost:5433/deny_list
-LOCAL_TEST_DATABASE_URL ?= postgres://deny_list:$(PG_PASS)@localhost:5433/deny_list_test
+# sslmode=disable: Postgres only accepts TLS 1.3, which Prisma's schema engine
+# can't do on macOS (it uses the system's TLS, P1011 "bad protocol version").
+# The port-forward is already encrypted up to the cluster.
+LOCAL_DATABASE_URL      ?= postgres://deny_list:$(PG_PASS)@localhost:5433/deny_list?sslmode=disable
+LOCAL_TEST_DATABASE_URL ?= postgres://deny_list:$(PG_PASS)@localhost:5433/deny_list_test?sslmode=disable
 # Redis DB 0 and 1 are importer's. Keys are under deny-list: in any case.
 LOCAL_REDIS_URL         ?= redis://:$(RD_PASS)@localhost:6380/2
 LOCAL_TEST_REDIS_URL    ?= redis://:$(RD_PASS)@localhost:6380/3

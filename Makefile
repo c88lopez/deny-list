@@ -6,12 +6,13 @@ NAMESPACE := deny-list
 # Where Postgres and Redis run (the platform repo's manifests/data/).
 DATA_NS   := data
 
-.PHONY: tunnel dev-setup run test cover migrate-local migration image release secrets status logs restart
+.PHONY: dev-setup run test cover migrate-local migration image release secrets status logs restart
 
 ## --- local ---
-# Local runs use the cluster's Postgres and Redis through `make tunnel`, with
-# credentials read from their Secrets (each value is fetched once, and only by
-# targets that use it). Override with the LOCAL_* variables.
+# Local runs use the cluster's Postgres and Redis through `make tunnel` in the
+# workspace's Makefile (one level up), with credentials read from their Secrets
+# (each value is fetched once, and only by targets that use it). Override with
+# the LOCAL_* variables.
 #
 #   run    the real deny_list database and Redis DB 2
 #   test   deny_list_test and Redis DB 3
@@ -29,14 +30,6 @@ LOCAL_TEST_DATABASE_URL ?= postgres://deny_list:$(PG_PASS)@localhost:5433/deny_l
 # Redis DB 0 and 1 are importer's. Keys are under deny-list: in any case.
 LOCAL_REDIS_URL         ?= redis://:$(RD_PASS)@localhost:6380/2
 LOCAL_TEST_REDIS_URL    ?= redis://:$(RD_PASS)@localhost:6380/3
-
-# Leave it running in its own terminal. The same ports as importer's tunnel,
-# so either one serves both repos (run only one of them).
-tunnel: ## forward the cluster's Postgres (5433) and Redis (6380) to localhost
-	@trap 'kill 0' INT TERM EXIT; \
-	kubectl -n $(DATA_NS) port-forward svc/postgres-rw 5433:5432 & \
-	kubectl -n $(DATA_NS) port-forward svc/redis 6380:6379 & \
-	wait
 
 dev-setup: ## once: create the test database in the cluster (needs the deny_list role from the platform repo)
 	kubectl apply -f k8s/dev/

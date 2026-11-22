@@ -73,7 +73,7 @@ Node 24. Postgres and Redis are the cluster's, through port-forwards (see the co
 ```sh
 npm ci
 make dev-setup   # once: the deny_list_test database
-make tunnel      # in its own terminal
+make -C .. tunnel  # the workspace's tunnel, in its own terminal
 make test        # unit + e2e, the e2e dependency tests against the cluster (migrates the test database first)
 make migrate-local  # apply migrations to the real deny_list database
 make run         # :3000, metrics :9467

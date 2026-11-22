@@ -8,7 +8,7 @@ There are no local copies of Postgres or Redis. Local runs and tests use the clu
 
 ```sh
 make dev-setup     # once: the deny_list_test database in the cluster
-make tunnel        # keep running in its own terminal: Postgres :5433, Redis :6380 (importer's tunnel works too)
+make -C .. tunnel  # the workspace's tunnel; keep it running in its own terminal: Postgres :5433, Redis :6380
 make test          # unit tests, then e2e against deny_list_test and Redis DB 3
 make cover         # the same with coverage, in coverage/unit and coverage/e2e
 make run           # :3000, metrics :9467, against the real deny_list database and Redis DB 2

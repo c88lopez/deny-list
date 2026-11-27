@@ -15,7 +15,7 @@ It keeps a list of denied values (IP addresses, emails and domains) that clients
 | 3000 | `GET /readyz` | Readiness: pings Postgres and Redis concurrently, 2s each. 503 when a dependency in `CRITICAL_DEPENDENCIES` fails or the pod is shutting down; 200 `degraded` when only another one fails; `skipped` for one that isn't configured. |
 | 9464 (`METRICS_PORT`) | `GET /metrics` | Prometheus. Not in the Service, so not reachable through the NodePort. |
 
-In the cluster: `http://192.168.68.61:30083`.
+In the cluster: `http://homelab.home.arpa:30083`.
 
 ### Entries
 

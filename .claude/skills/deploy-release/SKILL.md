@@ -10,7 +10,7 @@ description: How deny-list gets to the cluster - Argo CD deploys from k8s/ on ma
 - Argo CD deploys `k8s/` from `main`. The Application lives in the separate platform repo, not here.
 - Changes reach `main` through PRs. A merged PR that changes only `k8s/` (the ConfigMap, the HPA) is live within a few minutes, with no release. Such commits skip CI on `main` (their PR still runs it).
 - Every sync first runs the `deny-list-migrate` Job (`k8s/jobs/migrate.yaml`, an Argo CD PreSync hook): `prisma migrate deploy` from the image being deployed, on `MIGRATE_DATABASE_URL`. If it fails, the sync stops and the old pods keep running; read its logs with `kubectl -n deny-list logs job/deny-list-migrate`. Migrations must work with the version still running, since its pods serve until the rollout replaces them.
-- Check a deploy with `make status`, and `curl http://192.168.68.61:30083/readyz`.
+- Check a deploy with `make status`, and `curl http://homelab.home.arpa:30083/readyz`.
 
 ## Releasing a version
 
